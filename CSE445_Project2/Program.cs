@@ -9,16 +9,16 @@ namespace CSE445_Project2
         {
             //Console.WriteLine("Hello World!");
             Theater theater = new Theater();
-            Thread theaterThread = new Thread(new ThreadStart(theater.theaterFunc));
+            Thread theaterThread = new Thread(new ThreadStart(theater.PricingModel));
             theaterThread.Start();
 
             TicketBroker brokerThread = new TicketBroker(); // subscribe to event
             Theater.promotion += new promotionalEvent(brokerThread.promotionalEvent);
             Thread[] brokers = new Thread[2];
-            for(int i = 0; i < 2; i++)
+            for(int i = 0; i < 5; i++) // N = 5
             {
                 brokers[i] = new Thread(new ThreadStart(brokerThread.brokerFunc));
-                brokers[i].Name = (i + 1).ToString();
+                //brokers[i].Name = (i + 1).ToString();
                 brokers[i].Start();
             }
 
@@ -26,7 +26,7 @@ namespace CSE445_Project2
         }
     }
 
-    public delegate void promotionalEvent(int price);
+    public delegate void promotionalEvent(int price, int old_price, int t_count);
 
 
     public class Theater
@@ -44,41 +44,29 @@ namespace CSE445_Project2
             ticketPrice = 100;
             rng = new Random();
         }
-        public int getPrice() { return ticketPrice; }
+        public static int getPrice() { return ticketPrice; }
         public static void changePrice(int price)
         {
-            if(price < ticketPrice)
+         
+            if (price < ticketPrice)
             {
                 if(promotion != null)
                 {
-                    promotion(price);
+                    promotion(price, ticketPrice, counter_t);
                     counter_t = counter_t + 1;
                 }
                 ticketPrice = price;
             }
         }
-
-        public void theaterFunc()
-        {
-            for(int i = 0; i < 50; i++)
-            {
-                Thread.Sleep(500);
-                int p = rng.Next(50, 100);
-                Theater.changePrice(p);
-            }
-        }
-        
-
-        // method to be started as a thread
-        
-
-
-
+       
+        // starts thread
         // determine ticket prices
         public void PricingModel()
         {
+            //int old_price = getPrice();
             while(counter_t < 20)
             {
+                Thread.Sleep(500);
                 int price = rng.Next(40, 200);
                 changePrice(price);
             }
@@ -87,6 +75,12 @@ namespace CSE445_Project2
 
         public void orderProcessing()
         {
+            // new thread is instantiated
+            OrderClass orderObject = new OrderClass();
+            //Thread orderThread = new Thread(new ThreadStart())
+            // start new thread
+            // check valitity of cc number
+            // cc number must be between 5000 and 7000
 
         }
 
@@ -98,21 +92,22 @@ namespace CSE445_Project2
         public TicketBroker()
         {
             // generates order object
+            // 
         }
 
         public void brokerFunc()
         {
-            Theater theater = new Theater();
+            //Theater theater = new Theater();
             for(int i = 0; i < 10; i++)
             {
                 Thread.Sleep(1000);
-                int p = theater.getPrice();
+                int p = Theater.getPrice();
                 Console.WriteLine("TicketBroker{0} has everyday low price: ${1} each", Thread.CurrentThread.Name, p);
             }
 
             
         }
-        public void promotionalEvent(int p)
+        public void promotionalEvent(int p, int old_p, int count)
         {
             Console.WriteLine("TicketBroker{0} tickets are on sale: as low as ${1} each", Thread.CurrentThread.Name, p);
         }
@@ -121,12 +116,25 @@ namespace CSE445_Project2
     public class MultiCellBuffer
     {
         private OrderClass[] cell;
+        // create a semaphore to track buffer availabality
+        Semaphore cell_pool = new Semaphore(0, 2);
+        // use a lock mechanism here asw
         public MultiCellBuffer()
         {
-            // cells
+            // cells, 2 for individual
             cell = new OrderClass[2];
             cell[0] = new OrderClass();
             cell[1] = new OrderClass();
+        }
+
+        public void setOneCell()
+        {
+            cell_pool.WaitOne();   
+        }
+
+        public void getOnecell()
+        {
+            cell_pool.Release();
         }
     }
 
