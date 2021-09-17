@@ -14,24 +14,39 @@ namespace CSE445_Project2
             Thread theaterThread = new Thread(new ThreadStart(theater.PricingModel));
             theaterThread.Start();
 
-            TicketBroker brokerThread = new TicketBroker(); 
-            Theater.promotion += new promotionalEvent(brokerThread.promotionalEvent); // subscribe to event
+
+            TicketBroker brokerTs = new TicketBroker("test_broker1");
+            
+
+            Theater.promotion += new promotionalEvent(brokerTs.promotionalEvent); // subscribe to event
+            
             Thread[] brokers = new Thread[5];
             string[] broker_names = { "tickets.com", "stubhub.com", "getseats.com", "buytickets.com", "promotional.com"};
             for (int i = 0; i < 5; i++) // N = 5
             {
-                brokers[i] = new Thread(new ThreadStart(brokerThread.brokerFunc));
+                Console.WriteLine("broker started");
+
+                brokers[i] = new Thread(new ThreadStart(brokerTs.brokerFunc));
                 brokers[i].Name = broker_names[i];
                 brokers[i].Start();
             }
 
+            
+
+
 
         }
     }
+    //event
+    public class PriceCutEvenArgs
+    {
+        public int price { get; set; }
+        public int old_price { get; set; }
+    }
 
-    public delegate void promotionalEvent(int price, int old_price, string name);
+    public delegate void promotionalEvent(object source, PriceCutEvenArgs args);
 
-
+    // server
     public class Theater
     {
         private static int counter_t;
@@ -39,15 +54,18 @@ namespace CSE445_Project2
         public static event promotionalEvent promotion;
         static Random rng;
         public static string id;
+        static object _locker = new object();
+        public static int orders;
         
 
         public Theater(string ID)
         {
             // constructor
             counter_t = 0;
-            ticketPrice = 100;
+            ticketPrice = 200;
             rng = new Random();
             id = ID;
+            orders = 0;
 
 
         }
@@ -55,17 +73,26 @@ namespace CSE445_Project2
 
 
         // price cut event
-        public static void changePrice(int price)
+        public virtual void changePrice(int price)
         {
+            // if the new price is lower than the previous price
+            // emit an event
+            // calls event handler in the ticket brokers
          
             if (price < ticketPrice)
             {
-                if(promotion != null)
+                lock (_locker)
                 {
-                    promotion(price, ticketPrice, id);
-                    counter_t++;
+                    if (promotion != null)
+                    {
+                        promotion(this, new PriceCutEvenArgs() { price = price, old_price = ticketPrice});
+                       // promotion(price, ticketPrice, id);
+                        //Console.WriteLine($"ticketprice = {ticketPrice}, price = {price}");
+                        counter_t++;
+                    }
+                    ticketPrice = price;
                 }
-                ticketPrice = price;
+                
             }
         }
        
@@ -76,8 +103,21 @@ namespace CSE445_Project2
             //int old_price = getPrice();
             while(counter_t < 20)
             {
+                //Console.WriteLine(counter_t);
                 Thread.Sleep(500);
-                int price = rng.Next(40, 200);
+                int price;
+                if (rng.Next(1,10) % 2 == 0)
+                {
+                    double discount = rng.Next(0, 100) * 0.1;
+                    price = ticketPrice - (int)discount;
+                }
+                else
+                {
+                    double increase = rng.Next(0, 100) * 0.1;
+                    price = ticketPrice + (int)increase;
+                }
+                
+               // Console.WriteLine(price);
                 changePrice(price);
                 recieveOrder();
             }
@@ -87,15 +127,22 @@ namespace CSE445_Project2
         {
             // new thread is instantiated
             OrderClass orderObject = (OrderClass)order;
-            
+            orders++;
             // check valitity of cc number
             // cc number must be between 5000 and 7000
             if (orderObject.getCardNumber() >= 5000 && orderObject.getCardNumber() <= 7000)
             {
+                
+                
                 double charge_amt = orderObject.getUnitPrice() * orderObject.getQuantity();
+                //Console.WriteLine($"chargeamt = {charge_amt}");
                 double after_tax = charge_amt * 0.10;
-                double grand_total = after_tax + 10;
-                Console.WriteLine($"order has been processed for {orderObject.getQuantity()} tickets with total : {grand_total}");
+                double grand_total = charge_amt + after_tax + 10;
+                Console.WriteLine($"order #{orders};\nfrom {orderObject.getSenderId()};\nwith card ending in *{orderObject.getCardNumber()}*;\nhas been processed for ${orderObject.getUnitPrice()} per ticket with {orderObject.getQuantity()} tickets;\nfor a total : ${grand_total};\n\n");
+            }
+            else
+            {
+                Console.WriteLine($"order #{orders};\norder from {orderObject.getSenderId()};\ncredit card rejected;\n\n");
             }
             
         }
@@ -104,11 +151,11 @@ namespace CSE445_Project2
         {
             //Thread orderThread = new Thread(new ThreadStart())
             // start new thread
-            OrderClass order = Program.buf.getOnecell(Thread.CurrentThread.Name);
+            OrderClass order = Program.buf.getOnecell();
             //Console.WriteLine($"order : {order}");
             if(order != null)
             {
-                Console.WriteLine($"processing an order from : {order.getSenderId()}");
+                //Console.WriteLine($"processing an order from : {order.getSenderId()}");
                 Thread orderThread = new Thread(new ParameterizedThreadStart(orderProcessing));
                 orderThread.Name = "{recieved order thread}";
                 orderThread.Start(order);
@@ -121,47 +168,68 @@ namespace CSE445_Project2
         // 
     }
 
+    // client
+
     public class TicketBroker
     {
 
         public static string id;
-        public TicketBroker()
+        public Random rng;
+        public int number_of_tickets;
+        object _locker = new object();
+        public TicketBroker(string ID)
         {
+            //id = ID;
+            //Console.WriteLine($"id = {id}");
+            rng = new Random();
+
             // generates order object
             // 
         }
 
         public void brokerFunc()
         {
-            //Theater theater = new Theater();
-            for(int i = 0; i < 10; i++)
-            {
-                Thread.Sleep(1000);
-                int p = Theater.getPrice();
-                //Console.WriteLine("TicketBroker {0} has everyday low price: ${1} each", Thread.CurrentThread.Name, p);
-            }
 
             
+            for (int i = 0; i < 20; i++)
+            {
+                lock (_locker)
+                {
+                    id = Thread.CurrentThread.Name;
+                }
+
+                Thread.Sleep(1000);
+                
+               
+
+                //Console.WriteLine("TicketBroker {0} has everyday low price: ${1} each", Thread.CurrentThread.Name, null);
+            }
+            //Theater theater = new Theater();
+
+
+
         }
 
         // event handler
-        public void promotionalEvent(int p, int old_p, string name)
+        public void promotionalEvent(object source, PriceCutEvenArgs args)
         {
 
             OrderClass new_order = new OrderClass();
-            new_order.setCardNumber(7000);
-            new_order.setQuantity(numberOfTickets());
-            new_order.setRecieverId(name);
-            new_order.setSenderId(Thread.CurrentThread.Name);
-            new_order.setUnitPrice(p);
-            Console.WriteLine($"Broker : {Thread.CurrentThread.Name} has placed an order and added to a cell");
+            new_order.setCardNumber(rng.Next(5000, 7500));
+            new_order.setQuantity(numberOfTickets(args.price, args.old_price));
+            //new_order.setRecieverId(name);
+            new_order.setSenderId(id);
+            new_order.setUnitPrice(args.price);
+            //Console.WriteLine($"Broker : {id} has placed an order to {name}");
+            // send to buffer
             Program.buf.setOneCell(new_order);
         }
 
-        public int numberOfTickets()
+        public int numberOfTickets(int price, int old_price)
         {
-            int price = Theater.getPrice();
-            int amount = 100 / price;
+            //Console.WriteLine($"old = {old_price}, new = {Theater.getPrice()}");
+            int amount = old_price - price;
+            //Console.WriteLine($"amoutn = {amount}");
             return amount;
         }
 
@@ -185,7 +253,7 @@ namespace CSE445_Project2
 
         public void setOneCell(OrderClass order)
         {
-            Console.WriteLine("waiting to set a cell");
+           //Console.WriteLine($"{order.getSenderId()} is waiting to set a cell");
             cell_pool.WaitOne(300);
             lock (_locker)
             {
@@ -193,7 +261,7 @@ namespace CSE445_Project2
                 {
                     if (cell[i] == null)
                     {
-                        Console.WriteLine("setting a cell");
+                        //Console.WriteLine("setting a cell");
                         cell[i] = order;
                         break;
 
@@ -203,7 +271,7 @@ namespace CSE445_Project2
             
         }
 
-        public OrderClass getOnecell(string id)
+        public OrderClass getOnecell()
         {
             
             OrderClass cell_order = null;
@@ -211,9 +279,9 @@ namespace CSE445_Project2
             {
                 for(int i = 0; i < 2; i++)
                 {
-                    if(cell[i] != null && String.Compare(cell[i].getSenderId(), id) == 0)
+                    if(cell[i] != null)
                     {
-                        Console.WriteLine("getting a cell");
+                        //Console.WriteLine("getting a cell");
                         cell_order = cell[i];
                         cell[i] = null;
                         cell_pool.Release();
