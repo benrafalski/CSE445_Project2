@@ -5,10 +5,18 @@ namespace CSE445_Project2
 {
     class Program
     {
-        public static MultiCellBuffer buf = new MultiCellBuffer();
+
+        /*
+        is there only one order per price cut?
+        can there be orders still after the theater thread terminates?
+        need to use mre or are?
+
+
+         */
+        public static MultiCellBuffer buf;
         static void Main(string[] args)
         {
-            
+            buf = new MultiCellBuffer();
             //Console.WriteLine("Hello World!");
             Theater theater = new Theater("ASU Gammage");
             Thread theaterThread = new Thread(new ThreadStart(theater.PricingModel));
@@ -16,15 +24,13 @@ namespace CSE445_Project2
 
 
             TicketBroker brokerTs = new TicketBroker("test_broker1");
-            
-
             Theater.promotion += new promotionalEvent(brokerTs.promotionalEvent); // subscribe to event
             
             Thread[] brokers = new Thread[5];
             string[] broker_names = { "tickets.com", "stubhub.com", "getseats.com", "buytickets.com", "promotional.com"};
             for (int i = 0; i < 5; i++) // N = 5
             {
-                Console.WriteLine("broker started");
+                //Console.WriteLine("broker started");
 
                 brokers[i] = new Thread(new ThreadStart(brokerTs.brokerFunc));
                 brokers[i].Name = broker_names[i];
@@ -85,9 +91,11 @@ namespace CSE445_Project2
                 {
                     if (promotion != null)
                     {
+
                         promotion(this, new PriceCutEvenArgs() { price = price, old_price = ticketPrice});
-                       // promotion(price, ticketPrice, id);
-                        //Console.WriteLine($"ticketprice = {ticketPrice}, price = {price}");
+                        // promotion(price, ticketPrice, id);
+                        Console.WriteLine($"ticketprice = {ticketPrice}, price = {price} PRICECUT MADE");
+                        
                         counter_t++;
                     }
                     ticketPrice = price;
@@ -121,6 +129,8 @@ namespace CSE445_Project2
                 changePrice(price);
                 recieveOrder();
             }
+            Console.WriteLine("theater terminated");
+            // terminates after 20 price cuts
         }
         // event stuff
         public static void orderProcessing(object order)
@@ -144,6 +154,7 @@ namespace CSE445_Project2
             {
                 Console.WriteLine($"order #{orders};\norder from {orderObject.getSenderId()};\ncredit card rejected;\n\n");
             }
+            Console.WriteLine($"order {orders} terminated");
             
         }
 
@@ -198,10 +209,13 @@ namespace CSE445_Project2
                     id = Thread.CurrentThread.Name;
                 }
 
-                Thread.Sleep(1000);
+                Thread.Sleep(2000);
                 
                
-
+                if(i == 19)
+                {
+                    Console.WriteLine($"broker : {Thread.CurrentThread.Name} terminated");
+                }
                 //Console.WriteLine("TicketBroker {0} has everyday low price: ${1} each", Thread.CurrentThread.Name, null);
             }
             //Theater theater = new Theater();
@@ -220,7 +234,7 @@ namespace CSE445_Project2
             //new_order.setRecieverId(name);
             new_order.setSenderId(id);
             new_order.setUnitPrice(args.price);
-            //Console.WriteLine($"Broker : {id} has placed an order to {name}");
+            Console.WriteLine($"Broker : {id} has placed an order to ");
             // send to buffer
             Program.buf.setOneCell(new_order);
         }
