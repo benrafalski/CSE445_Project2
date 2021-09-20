@@ -18,23 +18,26 @@ namespace CSE445_Project2
         {
             buf = new MultiCellBuffer();
             //Console.WriteLine("Hello World!");
-            Theater theater = new Theater("ASU Gammage");
+            Theater theater = new Theater();
             Thread theaterThread = new Thread(new ThreadStart(theater.PricingModel));
             theaterThread.Start();
+            Console.WriteLine("Theater strated");
 
 
-            TicketBroker brokerTs = new TicketBroker("test_broker1");
-            Theater.promotion += new promotionalEvent(brokerTs.promotionalEvent); // subscribe to event
+            TicketBroker brokerTs = new TicketBroker();
+            Theater.promotion += new promotionalEvent(brokerTs.promotionalEvent);// subscribe to event
+            Console.WriteLine("broker has subscribed");
             
             Thread[] brokers = new Thread[5];
-            string[] broker_names = { "tickets.com", "stubhub.com", "getseats.com", "buytickets.com", "promotional.com"};
+            //string[] broker_names = { "tickets.com", "stubhub.com", "getseats.com", "buytickets.com", "promotional.com"};
             for (int i = 0; i < 5; i++) // N = 5
             {
                 //Console.WriteLine("broker started");
 
                 brokers[i] = new Thread(new ThreadStart(brokerTs.brokerFunc));
-                brokers[i].Name = broker_names[i];
+                brokers[i].Name = $"Broker{i + 1}";
                 brokers[i].Start();
+                Console.WriteLine($"Broker{i + 1} has started as a thread");
             }
 
             
@@ -64,13 +67,13 @@ namespace CSE445_Project2
         public static int orders;
         
 
-        public Theater(string ID)
+        public Theater()
         {
             // constructor
             counter_t = 0;
             ticketPrice = 200;
             rng = new Random();
-            id = ID;
+            //id = ID;
             orders = 0;
 
 
@@ -87,19 +90,19 @@ namespace CSE445_Project2
          
             if (price < ticketPrice)
             {
-                lock (_locker)
-                {
+                //lock (_locker)
+                
                     if (promotion != null)
                     {
-
+                        Console.WriteLine($"ticketprice = {ticketPrice}, price = {price} PRICECUT MADE");
                         promotion(this, new PriceCutEvenArgs() { price = price, old_price = ticketPrice});
                         // promotion(price, ticketPrice, id);
-                        Console.WriteLine($"ticketprice = {ticketPrice}, price = {price} PRICECUT MADE");
+                        
                         
                         counter_t++;
                     }
                     ticketPrice = price;
-                }
+                
                 
             }
         }
@@ -148,11 +151,11 @@ namespace CSE445_Project2
                 //Console.WriteLine($"chargeamt = {charge_amt}");
                 double after_tax = charge_amt * 0.10;
                 double grand_total = charge_amt + after_tax + 10;
-                Console.WriteLine($"order #{orders};\nfrom {orderObject.getSenderId()};\nwith card ending in *{orderObject.getCardNumber()}*;\nhas been processed for ${orderObject.getUnitPrice()} per ticket with {orderObject.getQuantity()} tickets;\nfor a total : ${grand_total};\n\n");
+               // Console.WriteLine($"order #{orders};\nfrom {orderObject.getSenderId()};\nwith card ending in *{orderObject.getCardNumber()}*;\nhas been processed for ${orderObject.getUnitPrice()} per ticket with {orderObject.getQuantity()} tickets;\nfor a total : ${grand_total};\n\n");
             }
             else
             {
-                Console.WriteLine($"order #{orders};\norder from {orderObject.getSenderId()};\ncredit card rejected;\n\n");
+                //Console.WriteLine($"order #{orders};\norder from {orderObject.getSenderId()};\ncredit card rejected;\n\n");
             }
             Console.WriteLine($"order {orders} terminated");
             
@@ -163,14 +166,19 @@ namespace CSE445_Project2
             //Thread orderThread = new Thread(new ThreadStart())
             // start new thread
             OrderClass order = Program.buf.getOnecell();
-            //Console.WriteLine($"order : {order}");
+           
             if(order != null)
             {
                 //Console.WriteLine($"processing an order from : {order.getSenderId()}");
                 Thread orderThread = new Thread(new ParameterizedThreadStart(orderProcessing));
                 orderThread.Name = "{recieved order thread}";
                 orderThread.Start(order);
-                
+                Console.WriteLine($"order from : {order.getSenderId()} has been taken from the buffer by the theater");
+
+            }
+            else
+            {
+                Console.WriteLine("no orders found");
             }
         }
 
@@ -188,7 +196,7 @@ namespace CSE445_Project2
         public Random rng;
         public int number_of_tickets;
         object _locker = new object();
-        public TicketBroker(string ID)
+        public TicketBroker()
         {
             //id = ID;
             //Console.WriteLine($"id = {id}");
@@ -209,7 +217,7 @@ namespace CSE445_Project2
                     id = Thread.CurrentThread.Name;
                 }
 
-                Thread.Sleep(2000);
+                Thread.Sleep(1500);
                 
                
                 if(i == 19)
@@ -234,7 +242,7 @@ namespace CSE445_Project2
             //new_order.setRecieverId(name);
             new_order.setSenderId(id);
             new_order.setUnitPrice(args.price);
-            Console.WriteLine($"Broker : {id} has placed an order to ");
+            Console.WriteLine($"Broker : {id} has placed an order to the buffer cell ");
             // send to buffer
             Program.buf.setOneCell(new_order);
         }
@@ -267,7 +275,7 @@ namespace CSE445_Project2
 
         public void setOneCell(OrderClass order)
         {
-           //Console.WriteLine($"{order.getSenderId()} is waiting to set a cell");
+           Console.WriteLine($"{order.getSenderId()} is waiting to set a cell");
             cell_pool.WaitOne(300);
             lock (_locker)
             {
@@ -275,9 +283,12 @@ namespace CSE445_Project2
                 {
                     if (cell[i] == null)
                     {
-                        //Console.WriteLine("setting a cell");
+                        Console.WriteLine("setting a cell");
                         cell[i] = order;
                         break;
+                        
+                       
+                       
 
                     }
                 }
@@ -295,14 +306,18 @@ namespace CSE445_Project2
                 {
                     if(cell[i] != null)
                     {
-                        //Console.WriteLine("getting a cell");
-                        cell_order = cell[i];
-                        cell[i] = null;
-                        cell_pool.Release();
-                        break;
+                       
+                       
+                            cell_order = cell[i];
+                            cell[i] = null;
+                            cell_pool.Release();
+                            break;
+                        
+                        
                     }
                 }
             }
+            Console.WriteLine("getting a cell");
             //cell_pool.Release();
             return cell_order;
 
