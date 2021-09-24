@@ -1,40 +1,44 @@
 ﻿using System;
 using System.Threading;
 
+// student: Benjamin Rafalski
+// ASUID: 1216740421
+
 namespace CSE445_Project2
 {
+    // event delegate
     public delegate void promotionalEvent(object source, PriceCutEventArgs args);
     class Program
     {
+        // public vars used by other classes
         public static MultiCellBuffer buf;
-        public static Theater theater;
+        public static Thread theaterThread;
 
         static void Main(string[] args)
         {
             buf = new MultiCellBuffer();
-            theater = new Theater();
+            Theater theater = new Theater();
             // theater thread started 
             // number of theaters K = 1 (individual)
-            Thread theaterThread = new Thread(new ThreadStart(theater.PricingModel));
+            theaterThread = new Thread(new ThreadStart(theater.PricingModel));
             theaterThread.Start();
             theaterThread.Name = "theater";
-            //theaterThread.Join();
 
             TicketBroker[] brokerTs = new TicketBroker[5];
             for (int i = 0; i < 5; i++)
             {
+                // each ticket broker object subscribes to the event
                 brokerTs[i] = new TicketBroker();
                 Theater.promotion += new promotionalEvent(brokerTs[i].promotionalEvent);
             }
-            //Theater.promotion += new promotionalEvent(brokerTs.promotionalEvent);// subscribe to event
-
+           
             Thread[] brokers = new Thread[5];
             for (int i = 0; i < 5; i++) // N = 5
             {
+                // each broker is started with the same method in different objects
                 brokers[i] = new Thread(new ThreadStart(brokerTs[i].brokerFunc));
                 brokers[i].Name = $"Broker{i + 1}";
                 brokers[i].Start();
-                // brokers[i].Join();
             }
         }
     }

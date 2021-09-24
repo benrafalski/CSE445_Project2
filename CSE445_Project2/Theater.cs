@@ -3,24 +3,26 @@ using System.Threading;
 using System.Collections.Generic;
 using System.Text;
 
+// student: Benjamin Rafalski
+// ASUID: 1216740421
+
 namespace CSE445_Project2
 {
-    // server
+    // server side
+    // uses a pricing model to calculate ticket prices
+    // emits an event if the ticket price has decreased
+    // this calls the subscriber's event handlers
+    // recieves orders from the multicell buffer
+    // creates an order processing thread to process the order
     public class Theater
     {
         public static event promotionalEvent promotion;
-        static Random rng = new Random();
+        private static Random rng = new Random();
         public static object _locker = new object();
-        public static int demand;
-        public static int orders;
+        private static int demand;
+        private static int orders;
         private static int counter_t;
         private static double ticketPrice;
-
-
-        public int Orders
-        {
-            get { return counter_t; }
-        }
 
         public Theater()
         {
@@ -29,8 +31,6 @@ namespace CSE445_Project2
             ticketPrice = 120; // initial ticket price
             orders = 0;
             demand = 0;
-
-
         }
         
         // price cut event emitter
@@ -50,6 +50,10 @@ namespace CSE445_Project2
                 // waits for 1 second for brokers to place their orders if they have any  
                 Thread.Sleep(1000);
                 checkForOrders();
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"This price cut had {demand} total order(s)");
+                Console.ForegroundColor = ConsoleColor.White;
+                demand = 0;
             }
             // updates price
             ticketPrice = price;
@@ -67,7 +71,7 @@ namespace CSE445_Project2
                 // calculates a random number between 1-10
                 // if the number is even then there is a price cut
                 // otherwise there is a price increase
-                // uses a lock mechanism to ensure print statements execute in order
+                // uses a lock mechanism to ensure print statements do not get interupted
                 lock (_locker)
                 {
                     if (rng.Next(1, 10) % 2 == 0)
@@ -106,11 +110,11 @@ namespace CSE445_Project2
                         price = 120;
                     }
                     changePrice(price);
+                    
                 }
             }
             // theater terminates after 20 price cuts / orders have been made
-            // thread waits 1 second before terminating to ensure all broker threads have terminated
-            Thread.Sleep(1000);
+            Thread.Sleep(1000); // waits for final orders to be processed
             Console.WriteLine($"Theater terminated with {counter_t} price decreases and {orders} total orders");
         }
 
@@ -131,20 +135,32 @@ namespace CSE445_Project2
                 orders++;
                 if (orderObject.CardNumber >= 5000 && orderObject.CardNumber <= 7000)
                 {
-                    // calculates the total amount for a valid the order
-                    double charge_amt = orderObject.UnitPrice * orderObject.Quantity; // price * number of tickets
-                    double after_tax = charge_amt * 0.10; // 10% tax before location charge
-                    double grand_total = charge_amt + after_tax + 10; // theater changes a 10 dollar location fee
-
-                    // prints order info on screen
-                    Console.WriteLine($"################################################\n" +
-                        $"Order #{orders};\nfrom {orderObject.Sender};\n" +
-                        $"with card ending in *{orderObject.CardNumber}*;\n" +
-                        $"has been processed for ${String.Format("{0:0.00}", orderObject.UnitPrice)} per ticket with {orderObject.Quantity} tickets;\n" +
-                        $"for a total : ${String.Format("{0:0.00}", grand_total)};\n" +
-                        $"Order status: COMPLETED\n" +
+                    // order can not have more than 25 tickets
+                    if(orderObject.Quantity > 25)
+                    {
+                        Console.WriteLine($"################################################\n" +
+                        $"Order #{orders};\norder from {orderObject.Sender};\n" +
+                        $"for {orderObject.Quantity} tickets has been rejected;\n" +
+                        $"Order can have at must 25 tickets;\n" +
+                        $"Order status: REJECTED\n" +
                         $"################################################\n");
+                    }
+                    else
+                    {
+                        // calculates the total amount for a valid the order
+                        double charge_amt = orderObject.UnitPrice * orderObject.Quantity; // price * number of tickets
+                        double after_tax = charge_amt * 0.10; // 10% tax before location charge
+                        double grand_total = charge_amt + after_tax + 10; // theater changes a 10 dollar location fee
 
+                        // prints order info on screen
+                        Console.WriteLine($"################################################\n" +
+                            $"Order #{orders};\nfrom {orderObject.Sender};\n" +
+                            $"with card ending in *{orderObject.CardNumber}*;\n" +
+                            $"has been processed for ${String.Format("{0:0.00}", orderObject.UnitPrice)} per ticket with {orderObject.Quantity} tickets;\n" +
+                            $"for a total : ${String.Format("{0:0.00}", grand_total)};\n" +
+                            $"Order status: COMPLETED\n" +
+                            $"################################################\n");
+                    }
                 }
                 else
                 {
@@ -152,22 +168,25 @@ namespace CSE445_Project2
                     Console.WriteLine($"################################################\n" +
                         $"Order #{orders};\norder from {orderObject.Sender};\n" +
                         $"credit card ending in *{orderObject.CardNumber}* rejected;\n" +
+                        $"Theater does not accept this credit card number;\n" +
                         $"Order status: REJECTED\n" +
                         $"################################################\n");
                 }
             }
         }
 
-        // theater recieves orders from the multicell buffer
+        // theater checks for orders from the multicell buffer
+        // starts an order processing thread for each order in the buffer
         public void checkForOrders()
         {
+            //int count = counter_t;
 
             // checks both cells in the buffer
             for (int i = 0; i < 2; i++)
             {
                 // gets one cell
                 OrderClass order = Program.buf.getOnecell();
-                Thread.Sleep(500);
+                Thread.Sleep(500); // time spent to process the order
                 // if there was an order recieved
                 // start a new order processing thread
                 if (order != null)
@@ -182,18 +201,10 @@ namespace CSE445_Project2
                 else
                 {
                     Thread.Sleep(500);
-                }
+                }   
             }
-            // prints the total number of orders per price cut
-            // total number can be between [0,2]
-            // because once the buffer is full all other brokers
-            // will be turned away until the theater takes out an order
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"This price cut had {demand} total order(s)");
-            Console.ForegroundColor = ConsoleColor.White;
-            demand = 0; // reset demand
+            // waits to process the orders
             Thread.Sleep(1000);
-
         }
     }
 }

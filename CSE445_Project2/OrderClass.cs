@@ -2,6 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 
+// student: Benjamin Rafalski
+// ASUID: 1216740421
+
 namespace CSE445_Project2
 {
     // order class object
@@ -13,7 +16,7 @@ namespace CSE445_Project2
         private string senderID;
         private double unit_price;
 
-        // properties
+        // properties with getters and setters
         public int CardNumber
         {
             get { return cardNo; }
